@@ -21,6 +21,10 @@ impl<R: Read> Deserializer<R> {
         }
     }
 
+    pub fn deserialize<'de, T: Deserialize<'de>>(&mut self) -> Result<T> {
+        T::deserialize(self)
+    }
+
     pub(super) fn look_up_type(&self, type_id: TypeId) -> Result<TypeDef> {
         TypeDef::from_id(type_id, &self.types).ok_or(ErrorKind::UndefinedType(type_id).into())
     }

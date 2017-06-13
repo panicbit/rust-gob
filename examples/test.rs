@@ -5,15 +5,14 @@ extern crate gob;
 
 use std::fs::File;
 use std::collections::HashMap;
-use serde::Deserialize;
 
 fn main() {
     env_logger::init().unwrap();
     let path = "/tmp/out.bin";
     let input = File::open(path).expect(path);
-    let mut decoder = gob::Deserializer::new(input);
-    let n: gob::Result<Example> = Example::deserialize(&mut decoder);
-    println!("{:#?}", n);
+    let mut gob = gob::Deserializer::new(input);
+    let example = gob.deserialize::<Example>();
+    println!("{:#?}", example);
 }
 
 #[derive(Debug,Default,Clone,Deserialize)]

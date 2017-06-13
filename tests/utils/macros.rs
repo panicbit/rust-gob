@@ -50,11 +50,11 @@ macro_rules! de_test {
                     panic!("{}", stderr);
                 }
 
-                let mut deserializer = ::gob::Deserializer::new(&mut stdout);
+                let mut gob = ::gob::Deserializer::new(&mut stdout);
 
                 $(#[allow(non_snake_case)] $decls)*
 
-                let $val_name: $typ = ::serde::Deserialize::deserialize(&mut deserializer).unwrap();
+                let $val_name: $typ = gob.deserialize().unwrap();
 
                 $($val_exprs)*;
             }
