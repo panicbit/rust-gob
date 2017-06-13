@@ -10,8 +10,8 @@ use serde::Deserialize;
 fn main() {
     let path = "/tmp/out.bin";
     let input = File::open(path).expect(path);
-    let mut decoder = gob::Decoder::new(input);
-    let n: gob::Result<Example> = Deserialize::deserialize(&mut decoder);
+    let mut decoder = gob::Deserializer::new(input);
+    let n: gob::Result<Example> = Example::deserialize(&mut decoder);
     println!("{:#?}", n);
 }
 

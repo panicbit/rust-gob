@@ -50,7 +50,7 @@ macro_rules! de_test {
                     panic!("{}", stderr);
                 }
 
-                let mut deserializer = ::gob::Decoder::new(&mut stdout);
+                let mut deserializer = ::gob::Deserializer::new(&mut stdout);
 
                 $(#[allow(non_snake_case)] $decls)*
 
