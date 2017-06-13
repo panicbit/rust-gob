@@ -1,21 +1,21 @@
-use super::State;
 use std::io::Read;
 use std::marker::PhantomData;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::mem::{self,size_of};
-use serde::Deserialize;
 use byteorder::ReadBytesExt;
 use byteorder::BigEndian as BE;
-use serde;
+use serde::{self,Deserialize};
+use serde::de::Visitor;
 use errors::*;
-use types::{TypeId,TypeDef,WireType};
+use types::{TypeId,FieldId,TypeDef,WireType,WireTypeEnum};
 use types::ids::*;
+use super::{State,FieldMap,SliceDecoder};
 
 pub struct Deserializer<'a, R> {
     reader: R,
     pub(crate) state: State,
-    pub(crate) types: HashMap<TypeId, TypeDef>,
+    types: HashMap<TypeId, TypeDef>,
     _m: PhantomData<&'a ()>,
 }
 
@@ -126,6 +126,120 @@ impl<'a, R: Read> Deserializer<'a, R> {
     }
 }
 
+impl<'a, R: Read> Deserializer<'a, R> {
+    pub fn deserialize_value<V>(&mut self, visitor: V, type_def: TypeDef) -> Result<V::Value>
+        where V: Visitor<'a>
+    {
+        match type_def.clone() {
+            TypeDef::String
+            | TypeDef::Interface
+            | TypeDef::ArrayType
+            | TypeDef::Complex
+            | TypeDef::SliceType
+            | TypeDef::FieldTypeSlice
+            | TypeDef::MapType
+            | TypeDef::StructType => bail!("Decoding for {:?} not implemented", type_def),
+            TypeDef::ByteSlice => visitor.visit_seq(SliceDecoder::new(self, TypeDef::Uint)?),
+            TypeDef::Bool => visitor.visit_bool(self.read_bool()?),
+            TypeDef::Uint => visitor.visit_u64(self.read_u64()?),
+            TypeDef::Float => visitor.visit_f64(self.read_f64()?),
+            TypeDef::Int => visitor.visit_i64(self.read_i64()?),
+            TypeDef::CommonType => visitor.visit_map(FieldMap::new(self, TypeDef::CommonType)),
+            TypeDef::WireType => visitor.visit_map(FieldMap::new(self, TypeDef::WireType)),
+            TypeDef::FieldType => visitor.visit_map(FieldMap::new(self, TypeDef::FieldType)),
+            TypeDef::Custom(wire_type) => match *wire_type {
+                WireTypeEnum::Struct(_) => visitor.visit_map(FieldMap::new(self, type_def)),
+                _ => bail!("Decoding for {} not implemented")
+            }
+        }
+    }
+
+    pub fn deserialize_field_name<V>(&mut self, visitor: V, type_def: TypeDef, field_id: FieldId) -> Result<V::Value>
+        where V: Visitor<'a>
+    {
+        let field_name = match type_def {
+              TypeDef::Bool
+            | TypeDef::Int
+            | TypeDef::Uint
+            | TypeDef::Float
+            | TypeDef::ByteSlice
+            | TypeDef::String
+            | TypeDef::Interface
+            | TypeDef::ArrayType
+            | TypeDef::Complex
+            | TypeDef::FieldTypeSlice
+            | TypeDef::MapType
+            | TypeDef::SliceType => bail!("Field name for {} not implemented", type_def.id()),
+            // TypeDef::MapType => visitor.visit_map(MapMap::new(de, ))
+            TypeDef::WireType => match field_id {
+                0 => "ArrayT",
+                1 => "SliceT",
+                2 => "StructT",
+                3 => "MapT",
+                _ => bail!(ErrorKind::InvalidField)
+            },
+            TypeDef::CommonType => match field_id {
+                0 => "Name",
+                1 => "Id",
+                _ => bail!(ErrorKind::InvalidField)
+            },
+            TypeDef::StructType => match field_id {
+                0 => "CommonType",
+                1 => "Field",
+                _ => bail!(ErrorKind::InvalidField)
+            },
+            TypeDef::FieldType => match field_id {
+                0 => "Name",
+                1 => "Id",
+                _ => bail!(ErrorKind::InvalidField)
+            },
+            TypeDef::Custom(ref wire_type) => match **wire_type {
+                WireTypeEnum::Struct(ref t) => t.fields().get(field_id as usize).map(|field| field.name()).ok_or(ErrorKind::InvalidField)?,
+                _ => bail!("Decoding of field name for {} not implemented")
+            }
+        };
+
+        trace!("{}", field_name);
+        visitor.visit_str(&field_name)
+    }
+
+    pub fn deserialize_field_value<V>(&mut self, visitor: V, type_def: TypeDef, field_id: FieldId) -> Result<V::Value>
+        where V: Visitor<'a>
+    {
+        match type_def {
+            TypeDef::WireType => match field_id {
+                2 => visitor.visit_map(FieldMap::new(self, TypeDef::StructType)),
+                3 => self.deserialize_value(visitor, TypeDef::MapType),
+                _ => bail!("wireType field {} unimplemented", field_id),
+            },
+            TypeDef::StructType => match field_id {
+                0 => self.deserialize_value(visitor, TypeDef::CommonType),
+                1 => visitor.visit_seq(SliceDecoder::new(self, TypeDef::FieldType)?),
+                _ => bail!("structType field {} unimplemented", field_id),
+            },
+            TypeDef::FieldType => match field_id {
+                0 => visitor.visit_byte_buf(self.read_bytes()?),
+                1 => visitor.visit_i64(self.read_type_id()?),
+                _ => bail!("fieldType field {} unimplemented", field_id),
+            },
+            TypeDef::CommonType => match field_id {
+                0 => visitor.visit_byte_buf(self.read_bytes()?),
+                1 => visitor.visit_i64(self.read_type_id()?),
+                _ => bail!("commonType field {} unimplemented", field_id)
+            },
+            TypeDef::Custom(ref wire_type) => match **wire_type {
+                WireTypeEnum::Struct(ref t) => {
+                    let type_id = t.fields().get(field_id as usize).map(|field| field.id()).ok_or(ErrorKind::InvalidField)?;
+                    let type_def = TypeDef::from_id(type_id, &self.types).ok_or(ErrorKind::UndefinedType(type_id))?;
+                    self.deserialize_value(visitor, type_def)
+                },
+                _ => bail!("Decoding of field name for {} not implemented")
+            },
+            _ => bail!("Decoding of field value for id {} not implemented", type_def.id())
+        }
+    }
+}
+
 impl<'de, 'a, R: Read> serde::Deserializer<'de> for &'a mut Deserializer<'de, R> {
     type Error = Error;
 
@@ -180,9 +294,9 @@ impl<'de, 'a, R: Read> serde::Deserializer<'de> for &'a mut Deserializer<'de, R>
                 self.state = State::DecodeValue(type_def);
                 self.deserialize_any(visitor)
             }
-            State::DecodeValue(type_def) => type_def.deserialize_value(self, visitor),
-            State::DecodeFieldName(type_def, field_id) => type_def.deserialize_field_name(self, visitor, field_id),
-            State::DecodeFieldValue(type_def, field_id) => type_def.deserialize_field_value(self, visitor, field_id),
+            State::DecodeValue(type_def) => self.deserialize_value(visitor, type_def),
+            State::DecodeFieldName(type_def, field_id) => self.deserialize_field_name(visitor, type_def, field_id),
+            State::DecodeFieldValue(type_def, field_id) => self.deserialize_field_value(visitor, type_def, field_id),
         }
     }
 

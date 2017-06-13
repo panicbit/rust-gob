@@ -25,7 +25,7 @@ pub mod ids {
 }
 
 pub type TypeId = i64;
-pub type FieldId = isize;
+pub type FieldId = isize; // TODO: isize => usize
 
 #[derive(Default,Debug,Clone,Deserialize)]
 pub struct ArrayType {
@@ -55,11 +55,27 @@ pub struct StructType {
          #[serde(rename="Field")] fields: Vec<FieldType>,
 }
 
+impl StructType {
+    pub(crate) fn fields(&self) -> &[FieldType] {
+        &self.fields
+    }
+}
+
 #[derive(Default,Debug,Clone,Deserialize)]
 #[serde(default)]
 pub struct FieldType {
     #[serde(rename="Name")] name: String,
       #[serde(rename="Id")] id: TypeId,
+}
+
+impl FieldType {
+    pub(crate) fn id(&self) -> TypeId {
+        self.id
+    }
+
+    pub(crate) fn name(&self) -> &str {
+        &self.name
+    }
 }
 
 #[derive(Default,Debug,Clone,Deserialize)]
