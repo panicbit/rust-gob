@@ -10,3 +10,6 @@ pub(crate) use self::slice_decoder::SliceDecoder;
 
 mod field_map;
 pub(crate) use self::field_map::FieldMap;
+
+mod read_gob;
+pub(crate) use self::read_gob::ReadGob;

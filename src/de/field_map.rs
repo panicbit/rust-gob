@@ -3,7 +3,7 @@ use serde;
 use de::Deserializer;
 use errors::*;
 use types::TypeDef;
-use super::State;
+use super::{State,ReadGob};
 
 pub struct FieldMap<'a, R: 'a> {
     current_field: isize,
@@ -30,7 +30,7 @@ impl<'a, 'de, R: Read> serde::de::MapAccess<'de> for FieldMap<'a, R> {
         where K: serde::de::DeserializeSeed<'de>
     {
         trace!("Next key");
-        let field_increment = self.de.read_usize()?;
+        let field_increment = self.de.reader.read_gob_usize()?;
         self.current_field += field_increment as isize;
 
         trace!("Increment {}", field_increment);

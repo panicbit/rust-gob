@@ -1,18 +1,15 @@
 use std::io::Read;
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::mem::{self,size_of};
-use byteorder::ReadBytesExt;
-use byteorder::BigEndian as BE;
 use serde::{self,Deserialize};
 use serde::de::Visitor;
 use errors::*;
 use types::{TypeId,FieldId,TypeDef,WireType,WireTypeEnum};
 use types::ids::*;
-use super::{State,FieldMap,SliceDecoder};
+use super::{State,FieldMap,SliceDecoder,ReadGob};
 
 pub struct Deserializer<R> {
-    reader: R,
+    pub(crate) reader: R,
     pub(crate) state: State,
     types: HashMap<TypeId, TypeDef>,
 }
@@ -24,102 +21,6 @@ impl<R: Read> Deserializer<R> {
             state: State::Start,
             types: HashMap::new(),
         }
-    }
-}
-
-impl<R: Read> Deserializer<R> {
-    pub fn read_u64(&mut self) -> Result<u64> {
-        let byte = self.reader.read_i8()?;
-
-        if byte >= 0 {
-            return Ok(byte as u64);
-        }
-
-        let n_bytes = (-byte) as usize;
-
-        if n_bytes == 0 {
-            bail!(ErrorKind::NumZeroBytes);
-        }
-
-        if n_bytes > size_of::<u64>() {
-            bail!(ErrorKind::NumOutOfRange);
-        }
-
-        let bytes = self.reader.read_uint::<BE>(n_bytes)?;
-
-        Ok(bytes as u64)
-    }
-
-    pub fn read_usize(&mut self) -> Result<usize> {
-        let byte = self.reader.read_i8()?;
-
-        if byte >= 0 {
-            return Ok(byte as usize);
-        }
-
-        let n_bytes = (-byte) as usize;
-
-        if n_bytes == 0 {
-            bail!(ErrorKind::NumZeroBytes);
-        }
-
-        if n_bytes > size_of::<usize>() || n_bytes > size_of::<u64>() {
-            bail!(ErrorKind::NumOutOfRange);
-        }
-
-        let bytes = self.reader.read_uint::<BE>(n_bytes)?;
-
-        Ok(bytes as usize)
-    }
-
-    pub fn read_i64(&mut self) -> Result<i64> {
-        let bytes = self.read_u64()? as i64;
-        let is_complement = bytes & 1 == 1;
-        let bytes = bytes >> 1;
-
-        if is_complement {
-            Ok(!bytes)
-        } else {
-            Ok(bytes)
-        }
-    }
-
-    pub fn read_isize(&mut self) -> Result<isize> {
-        let bytes = self.read_usize()? as isize;
-        let is_complement = bytes & 1 == 1;
-        let bytes = bytes >> 1;
-
-        if is_complement {
-            Ok(!bytes)
-        } else {
-            Ok(bytes)
-        }
-    }
-
-    pub fn read_bytes(&mut self) -> Result<Vec<u8>> {
-        let len = self.read_usize()?;
-        // TODO: Allow setting maximum length to avoid malicious OOM
-        let mut r = self.reader.by_ref().take(len as u64); // TODO: Fix cast
-        let mut data = Vec::with_capacity(len);
-        r.read_to_end(&mut data)?;
-
-        Ok(data)
-    }
-
-    pub fn read_f64(&mut self) -> Result<f64> {
-        unsafe {
-            let float: u64 = self.read_u64()?;
-            let float: f64 = mem::transmute(float.swap_bytes());
-            Ok(float)
-        }
-    }
-
-    pub fn read_bool(&mut self) -> Result<bool> {
-        self.read_usize().map(|b| b != 0)
-    }
-
-    pub fn read_type_id(&mut self) -> Result<TypeId> {
-        self.read_i64()
     }
 }
 
@@ -137,10 +38,10 @@ impl<'de, R: Read> Deserializer<R> {
             | TypeDef::MapType
             | TypeDef::StructType => bail!("Decoding for {:?} not implemented", type_def),
             TypeDef::ByteSlice => visitor.visit_seq(SliceDecoder::new(self, TypeDef::Uint)?),
-            TypeDef::Bool => visitor.visit_bool(self.read_bool()?),
-            TypeDef::Uint => visitor.visit_u64(self.read_u64()?),
-            TypeDef::Float => visitor.visit_f64(self.read_f64()?),
-            TypeDef::Int => visitor.visit_i64(self.read_i64()?),
+            TypeDef::Bool => visitor.visit_bool(self.reader.read_gob_bool()?),
+            TypeDef::Uint => visitor.visit_u64(self.reader.read_gob_u64()?),
+            TypeDef::Float => visitor.visit_f64(self.reader.read_gob_f64()?),
+            TypeDef::Int => visitor.visit_i64(self.reader.read_gob_i64()?),
             TypeDef::CommonType => visitor.visit_map(FieldMap::new(self, TypeDef::CommonType)),
             TypeDef::WireType => visitor.visit_map(FieldMap::new(self, TypeDef::WireType)),
             TypeDef::FieldType => visitor.visit_map(FieldMap::new(self, TypeDef::FieldType)),
@@ -215,13 +116,13 @@ impl<'de, R: Read> Deserializer<R> {
                 _ => bail!("structType field {} unimplemented", field_id),
             },
             TypeDef::FieldType => match field_id {
-                0 => visitor.visit_byte_buf(self.read_bytes()?),
-                1 => visitor.visit_i64(self.read_type_id()?),
+                0 => visitor.visit_byte_buf(self.reader.read_gob_bytes()?),
+                1 => visitor.visit_i64(self.reader.read_gob_type_id()?),
                 _ => bail!("fieldType field {} unimplemented", field_id),
             },
             TypeDef::CommonType => match field_id {
-                0 => visitor.visit_byte_buf(self.read_bytes()?),
-                1 => visitor.visit_i64(self.read_type_id()?),
+                0 => visitor.visit_byte_buf(self.reader.read_gob_bytes()?),
+                1 => visitor.visit_i64(self.reader.read_gob_type_id()?),
                 _ => bail!("commonType field {} unimplemented", field_id)
             },
             TypeDef::Custom(ref wire_type) => match **wire_type {
@@ -251,8 +152,8 @@ impl<'a, 'de, R: Read> serde::Deserializer<'de> for &'a mut Deserializer<R> {
 
                 // Read as many type definitions as possible
                 loop {
-                    len = self.read_usize()?;
-                    type_id = self.read_type_id()?;
+                    len = self.reader.read_gob_usize()?;
+                    type_id = self.reader.read_gob_type_id()?;
 
                     trace!("Len: {}", len);
 

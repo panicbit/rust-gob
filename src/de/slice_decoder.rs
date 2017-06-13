@@ -2,7 +2,7 @@ use std::io::Read;
 use serde;
 use errors::*;
 use types::TypeDef;
-use super::{Deserializer,State};
+use super::{Deserializer,State,ReadGob};
 
 pub struct SliceDecoder<'a, R: 'a> {
     de: &'a mut Deserializer<R>,
@@ -13,7 +13,7 @@ pub struct SliceDecoder<'a, R: 'a> {
 
 impl<'a, R: Read> SliceDecoder<'a, R> {
     pub fn new(de: &'a mut Deserializer<R>, type_def: TypeDef) -> Result<Self> {
-        let len = de.read_usize()?;
+        let len = de.reader.read_gob_usize()?;
         Ok(SliceDecoder {
             de,
             len,
