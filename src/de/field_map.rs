@@ -5,14 +5,14 @@ use errors::*;
 use types::TypeDef;
 use super::State;
 
-pub struct FieldMap<'a, 'de: 'a, R: 'a> {
+pub struct FieldMap<'a, R: 'a> {
     current_field: isize,
-    de: &'a mut Deserializer<'de, R>,
+    de: &'a mut Deserializer<R>,
     type_def: TypeDef,
 }
 
-impl<'a, 'de: 'a, R: 'a> FieldMap<'a, 'de, R> {
-    pub fn new(de: &'a mut Deserializer<'de, R>, type_def: TypeDef) -> Self {
+impl<'a, R> FieldMap<'a, R> {
+    pub fn new(de: &'a mut Deserializer<R>, type_def: TypeDef) -> Self {
         FieldMap {
             current_field: -1,
             de,
@@ -23,7 +23,7 @@ impl<'a, 'de: 'a, R: 'a> FieldMap<'a, 'de, R> {
 
 // `MapAccess` is provided to the `Visitor` to give it the ability to iterate
 // through entries of the map.
-impl<'a, 'de, R: Read> serde::de::MapAccess<'de> for FieldMap<'a, 'de, R> {
+impl<'a, 'de, R: Read> serde::de::MapAccess<'de> for FieldMap<'a, R> {
     type Error = Error;
 
     fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>>

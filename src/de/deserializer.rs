@@ -1,5 +1,4 @@
 use std::io::Read;
-use std::marker::PhantomData;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::mem::{self,size_of};
@@ -12,25 +11,23 @@ use types::{TypeId,FieldId,TypeDef,WireType,WireTypeEnum};
 use types::ids::*;
 use super::{State,FieldMap,SliceDecoder};
 
-pub struct Deserializer<'a, R> {
+pub struct Deserializer<R> {
     reader: R,
     pub(crate) state: State,
     types: HashMap<TypeId, TypeDef>,
-    _m: PhantomData<&'a ()>,
 }
 
-impl<'a, R: Read> Deserializer<'a, R> {
+impl<R: Read> Deserializer<R> {
     pub fn new(reader: R) -> Self {
         Deserializer {
             reader,
             state: State::Start,
             types: HashMap::new(),
-            _m: PhantomData,
         }
     }
 }
 
-impl<'a, R: Read> Deserializer<'a, R> {
+impl<R: Read> Deserializer<R> {
     pub fn read_u64(&mut self) -> Result<u64> {
         let byte = self.reader.read_i8()?;
 
@@ -126,9 +123,9 @@ impl<'a, R: Read> Deserializer<'a, R> {
     }
 }
 
-impl<'a, R: Read> Deserializer<'a, R> {
+impl<'de, R: Read> Deserializer<R> {
     pub fn deserialize_value<V>(&mut self, visitor: V, type_def: TypeDef) -> Result<V::Value>
-        where V: Visitor<'a>
+        where V: Visitor<'de>
     {
         match type_def.clone() {
             TypeDef::String
@@ -155,7 +152,7 @@ impl<'a, R: Read> Deserializer<'a, R> {
     }
 
     pub fn deserialize_field_name<V>(&mut self, visitor: V, type_def: TypeDef, field_id: FieldId) -> Result<V::Value>
-        where V: Visitor<'a>
+        where V: Visitor<'de>
     {
         let field_name = match type_def {
               TypeDef::Bool
@@ -204,7 +201,7 @@ impl<'a, R: Read> Deserializer<'a, R> {
     }
 
     pub fn deserialize_field_value<V>(&mut self, visitor: V, type_def: TypeDef, field_id: FieldId) -> Result<V::Value>
-        where V: Visitor<'a>
+        where V: Visitor<'de>
     {
         match type_def {
             TypeDef::WireType => match field_id {
@@ -240,7 +237,7 @@ impl<'a, R: Read> Deserializer<'a, R> {
     }
 }
 
-impl<'de, 'a, R: Read> serde::Deserializer<'de> for &'a mut Deserializer<'de, R> {
+impl<'a, 'de, R: Read> serde::Deserializer<'de> for &'a mut Deserializer<R> {
     type Error = Error;
 
     fn deserialize_any<V>(self, visitor: V) -> Result<V::Value>

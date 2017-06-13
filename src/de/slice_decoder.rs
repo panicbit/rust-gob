@@ -4,15 +4,15 @@ use errors::*;
 use types::TypeDef;
 use super::{Deserializer,State};
 
-pub struct SliceDecoder<'a, 'de: 'a, R: 'a> {
-    de: &'a mut Deserializer<'de, R>,
+pub struct SliceDecoder<'a, R: 'a> {
+    de: &'a mut Deserializer<R>,
     len: usize,
     current_index: usize,
     type_def: TypeDef,
 }
 
-impl<'a, 'de: 'a, R: Read + 'a> SliceDecoder<'a, 'de, R> {
-    pub fn new(de: &'a mut Deserializer<'de, R>, type_def: TypeDef) -> Result<Self> {
+impl<'a, R: Read> SliceDecoder<'a, R> {
+    pub fn new(de: &'a mut Deserializer<R>, type_def: TypeDef) -> Result<Self> {
         let len = de.read_usize()?;
         Ok(SliceDecoder {
             de,
@@ -25,7 +25,7 @@ impl<'a, 'de: 'a, R: Read + 'a> SliceDecoder<'a, 'de, R> {
 
 // `SeqAccess` is provided to the `Visitor` to give it the ability to iterate
 // through elements of the sequence.
-impl<'de, 'a, R: Read + 'a> serde::de::SeqAccess<'de> for SliceDecoder<'a, 'de, R> {
+impl<'a, 'de, R: Read> serde::de::SeqAccess<'de> for SliceDecoder<'a, R> {
     type Error = Error;
 
     fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>>
