@@ -24,7 +24,7 @@ pub mod ids {
     pub const MAP_TYPE_ID: TypeId = 23;
 }
 
-pub type TypeId = isize;
+pub type TypeId = i64;
 pub type FieldId = isize;
 
 #[derive(Default,Debug,Clone,Deserialize)]
@@ -38,7 +38,7 @@ pub struct ArrayType {
 #[serde(default)]
 pub struct CommonType {
     #[serde(rename="Name")] name: String,
-      #[serde(rename="Id")] id: isize,
+      #[serde(rename="Id")] id: TypeId,
 }
 
 #[derive(Default,Debug,Clone,Deserialize)]

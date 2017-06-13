@@ -3,7 +3,6 @@ use serde;
 use errors::*;
 use types::TypeDef;
 use super::{Deserializer,State};
-use GobDecodable;
 
 pub struct SliceDecoder<'a, 'de: 'a, R: 'a> {
     de: &'a mut Deserializer<'de, R>,
@@ -14,7 +13,7 @@ pub struct SliceDecoder<'a, 'de: 'a, R: 'a> {
 
 impl<'a, 'de: 'a, R: Read + 'a> SliceDecoder<'a, 'de, R> {
     pub fn new(de: &'a mut Deserializer<'de, R>, type_def: TypeDef) -> Result<Self> {
-        let len = usize::decode(&mut de.reader)?;
+        let len = de.read_usize()?;
         Ok(SliceDecoder {
             de,
             len,

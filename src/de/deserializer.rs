@@ -3,15 +3,17 @@ use std::io::Read;
 use std::marker::PhantomData;
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::mem::{self,size_of};
 use serde::Deserialize;
+use byteorder::ReadBytesExt;
+use byteorder::BigEndian as BE;
 use serde;
 use errors::*;
 use types::{TypeId,TypeDef,WireType};
 use types::ids::*;
-use GobDecodable;
 
 pub struct Deserializer<'a, R> {
-    pub(crate) reader: R,
+    reader: R,
     pub(crate) state: State,
     pub(crate) types: HashMap<TypeId, TypeDef>,
     _m: PhantomData<&'a ()>,
@@ -25,6 +27,102 @@ impl<'a, R: Read> Deserializer<'a, R> {
             types: HashMap::new(),
             _m: PhantomData,
         }
+    }
+}
+
+impl<'a, R: Read> Deserializer<'a, R> {
+    pub fn read_u64(&mut self) -> Result<u64> {
+        let byte = self.reader.read_i8()?;
+
+        if byte >= 0 {
+            return Ok(byte as u64);
+        }
+
+        let n_bytes = (-byte) as usize;
+
+        if n_bytes == 0 {
+            bail!(ErrorKind::NumZeroBytes);
+        }
+
+        if n_bytes > size_of::<u64>() {
+            bail!(ErrorKind::NumOutOfRange);
+        }
+
+        let bytes = self.reader.read_uint::<BE>(n_bytes)?;
+
+        Ok(bytes as u64)
+    }
+
+    pub fn read_usize(&mut self) -> Result<usize> {
+        let byte = self.reader.read_i8()?;
+
+        if byte >= 0 {
+            return Ok(byte as usize);
+        }
+
+        let n_bytes = (-byte) as usize;
+
+        if n_bytes == 0 {
+            bail!(ErrorKind::NumZeroBytes);
+        }
+
+        if n_bytes > size_of::<usize>() || n_bytes > size_of::<u64>() {
+            bail!(ErrorKind::NumOutOfRange);
+        }
+
+        let bytes = self.reader.read_uint::<BE>(n_bytes)?;
+
+        Ok(bytes as usize)
+    }
+
+    pub fn read_i64(&mut self) -> Result<i64> {
+        let bytes = self.read_u64()? as i64;
+        let is_complement = bytes & 1 == 1;
+        let bytes = bytes >> 1;
+
+        if is_complement {
+            Ok(!bytes)
+        } else {
+            Ok(bytes)
+        }
+    }
+
+    pub fn read_isize(&mut self) -> Result<isize> {
+        let bytes = self.read_usize()? as isize;
+        let is_complement = bytes & 1 == 1;
+        let bytes = bytes >> 1;
+
+        if is_complement {
+            Ok(!bytes)
+        } else {
+            Ok(bytes)
+        }
+    }
+
+    pub fn read_bytes(&mut self) -> Result<Vec<u8>> {
+        let len = self.read_usize()?;
+        // TODO: Allow setting maximum length to avoid malicious OOM
+        let mut r = self.reader.by_ref().take(len as u64); // TODO: Fix cast
+        let mut data = Vec::with_capacity(len);
+        r.read_to_end(&mut data)?;
+
+        Ok(data)
+    }
+
+    pub fn read_f64(&mut self) -> Result<f64> {
+        unsafe {
+            let float: u64 = self.read_u64()?;
+            let float: f64 = mem::transmute(float.swap_bytes());
+            Ok(float)
+        }
+    }
+
+    pub fn read_bool(&mut self) -> Result<bool> {
+        self.read_usize().map(|b| b != 0)
+    }
+
+    pub fn read_type_id(&mut self) -> Result<TypeId> {
+        self.read_i64()
     }
 }
 
@@ -42,8 +140,8 @@ impl<'de, 'a, R: Read> serde::Deserializer<'de> for &'a mut Deserializer<'de, R>
 
                 // Read as many type definitions as possible
                 loop {
-                    len = usize::decode(&mut self.reader)?;
-                    type_id = TypeId::decode(&mut self.reader)?;
+                    len = self.read_usize()?;
+                    type_id = self.read_type_id()?;
 
                     trace!("Len: {}", len);
 

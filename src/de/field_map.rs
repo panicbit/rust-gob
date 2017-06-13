@@ -1,10 +1,9 @@
-use io::Read;
+use std::io::Read;
 use serde;
 use de::Deserializer;
 use errors::*;
 use types::TypeDef;
 use super::State;
-use GobDecodable;
 
 pub struct FieldMap<'a, 'de: 'a, R: 'a> {
     current_field: isize,
@@ -31,7 +30,7 @@ impl<'a, 'de, R: Read> serde::de::MapAccess<'de> for FieldMap<'a, 'de, R> {
         where K: serde::de::DeserializeSeed<'de>
     {
         trace!("Next key");
-        let field_increment = usize::decode(&mut self.de.reader)?;
+        let field_increment = self.de.read_usize()?;
         self.current_field += field_increment as isize;
 
         trace!("Increment {}", field_increment);

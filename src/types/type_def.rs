@@ -6,7 +6,6 @@ use errors::*;
 use de::{Deserializer,SliceDecoder,FieldMap};
 use super::{WireTypeEnum, TypeId, FieldId};
 use super::ids::*;
-use GobDecodable;
 
 #[derive(Debug,Clone)]
 pub enum TypeDef {
@@ -88,10 +87,10 @@ impl TypeDef {
             | TypeDef::MapType
             | TypeDef::StructType => bail!("Decoding for {:?} not implemented", self),
             TypeDef::ByteSlice => visitor.visit_seq(SliceDecoder::new(de, TypeDef::Uint)?),
-            TypeDef::Bool => visitor.visit_bool(usize::decode(&mut de.reader)? != 0),
-            TypeDef::Uint => visitor.visit_u64(u64::decode(&mut de.reader)?),
-            TypeDef::Float => visitor.visit_f64(f64::decode(&mut de.reader)?),
-            TypeDef::Int => visitor.visit_i64(isize::decode(&mut de.reader)? as i64),
+            TypeDef::Bool => visitor.visit_bool(de.read_bool()?),
+            TypeDef::Uint => visitor.visit_u64(de.read_u64()?),
+            TypeDef::Float => visitor.visit_f64(de.read_f64()?),
+            TypeDef::Int => visitor.visit_i64(de.read_i64()?),
             TypeDef::CommonType => visitor.visit_map(FieldMap::new(de, TypeDef::CommonType)),
             TypeDef::WireType => visitor.visit_map(FieldMap::new(de, TypeDef::WireType)),
             TypeDef::FieldType => visitor.visit_map(FieldMap::new(de, TypeDef::FieldType)),
@@ -168,13 +167,13 @@ impl TypeDef {
                 _ => bail!("structType field {} unimplemented", field_id),
             },
             TypeDef::FieldType => match field_id {
-                0 => visitor.visit_byte_buf(Vec::decode(&mut de.reader)?),
-                1 => visitor.visit_i64(TypeId::decode(&mut de.reader)? as i64), // TODO: Fix cast
+                0 => visitor.visit_byte_buf(de.read_bytes()?),
+                1 => visitor.visit_i64(de.read_type_id()?),
                 _ => bail!("fieldType field {} unimplemented", field_id),
             },
             TypeDef::CommonType => match field_id {
-                0 => visitor.visit_byte_buf(Vec::decode(&mut de.reader)?),
-                1 => visitor.visit_i64(TypeId::decode(&mut de.reader)? as i64), // TODO: Fix cast
+                0 => visitor.visit_byte_buf(de.read_bytes()?),
+                1 => visitor.visit_i64(de.read_type_id()?),
                 _ => bail!("commonType field {} unimplemented", field_id)
             },
             TypeDef::Custom(ref wire_type) => match **wire_type {
