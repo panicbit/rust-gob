@@ -2,14 +2,14 @@
 mod deserializer;
 pub use self::deserializer::Deserializer;
 
-mod state;
-use self::state::State;
+mod read_gob;
+pub(self) use self::read_gob::ReadGob;
+
+mod value_deserializer;
+pub(self) use self::value_deserializer::ValueDeserializer;
 
 mod slice_decoder;
-pub(crate) use self::slice_decoder::SliceDecoder;
+pub(self) use self::slice_decoder::SliceDecoder;
 
 mod field_map;
-pub(crate) use self::field_map::FieldMap;
-
-mod read_gob;
-pub(crate) use self::read_gob::ReadGob;
+pub(self) use self::field_map::FieldMap;

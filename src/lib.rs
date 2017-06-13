@@ -10,3 +10,5 @@ mod types;
 
 pub use de::Deserializer;
 pub use errors::*;
+
+type TypeMap = ::std::collections::HashMap<types::TypeId, types::TypeDef>;

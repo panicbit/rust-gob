@@ -1,5 +1,5 @@
-#[macro_use]
-extern crate serde_derive;
+extern crate env_logger;
+#[macro_use] extern crate serde_derive;
 extern crate serde;
 extern crate gob;
 
@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use serde::Deserialize;
 
 fn main() {
+    env_logger::init().unwrap();
     let path = "/tmp/out.bin";
     let input = File::open(path).expect(path);
     let mut decoder = gob::Deserializer::new(input);
