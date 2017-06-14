@@ -1,20 +1,20 @@
 use std::io::Read;
-use serde::de::{SeqAccess,DeserializeSeed};
+use serde;
 use errors::*;
 use types::TypeDef;
 use super::{Deserializer,ValueDeserializer,ReadGob};
 
-pub struct SliceDecoder<'a, R: Read + 'a> {
+pub struct SeqAccess<'a, R: Read + 'a> {
     de: &'a mut Deserializer<R>,
     len: usize,
     current_index: usize,
     type_def: TypeDef,
 }
 
-impl<'a, R: Read + 'a> SliceDecoder<'a, R> {
+impl<'a, R: Read + 'a> SeqAccess<'a, R> {
     pub fn new(de: &'a mut Deserializer<R>, type_def: TypeDef) -> Result<Self> {
         let len = de.reader().read_gob_usize()?;
-        Ok(SliceDecoder {
+        Ok(SeqAccess {
             de,
             len,
             current_index: 0,
@@ -23,11 +23,11 @@ impl<'a, R: Read + 'a> SliceDecoder<'a, R> {
     }
 }
 
-impl<'a, 'de, R: Read> SeqAccess<'de> for SliceDecoder<'a, R> {
+impl<'a, 'de, R: Read> serde::de::SeqAccess<'de> for SeqAccess<'a, R> {
     type Error = Error;
 
     fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>>
-        where T: DeserializeSeed<'de>
+        where T: serde::de::DeserializeSeed<'de>
     {
         if self.current_index >= self.len {
             return Ok(None);

@@ -3,7 +3,7 @@ use serde;
 use serde::de::Visitor;
 use types::{TypeDef,WireTypeEnum};
 use errors::*;
-use super::{FieldMap,SliceDecoder,ReadGob};
+use super::ReadGob;
 
 pub struct ValueDeserializer<'a, R: 'a> {
     de: &'a mut super::Deserializer<R>,
@@ -13,18 +13,6 @@ pub struct ValueDeserializer<'a, R: 'a> {
 impl<'a, R: Read + 'a> ValueDeserializer<'a, R> {
     pub fn new(de: &'a mut super::Deserializer<R>, type_def: TypeDef) -> Self {
         ValueDeserializer { de, type_def }
-    }
-
-    fn deserialize_slice<'de, V>(&mut self, visitor: V, type_def: TypeDef) -> Result<V::Value>
-        where V: Visitor<'de>
-    {
-        visitor.visit_seq(SliceDecoder::new(self.de, type_def)?)
-    }
-
-    fn deserialize_struct<'de, V>(&mut self, visitor: V, type_def: TypeDef) -> Result<V::Value>
-        where V: Visitor<'de>
-    {
-        visitor.visit_map(FieldMap::new(self.de, type_def))
     }
 }
 
@@ -41,21 +29,21 @@ impl<'a, 'b, 'de, R: Read> serde::Deserializer<'de> for &'b mut ValueDeserialize
             | TypeDef::Complex
             | TypeDef::SliceType
             | TypeDef::MapType => bail!("Decoding for {:?} not implemented", self.type_def),
-            TypeDef::StructType => self.deserialize_struct(visitor, TypeDef::StructType),
-            TypeDef::ByteSlice => self.deserialize_slice(visitor, TypeDef::Uint),
+            TypeDef::StructType => self.de.deserialize_map(visitor, TypeDef::StructType),
+            TypeDef::ByteSlice => self.de.deserialize_seq(visitor, TypeDef::Uint),
             TypeDef::Bool => visitor.visit_bool(self.de.reader().read_gob_bool()?),
             TypeDef::Uint => visitor.visit_u64(self.de.reader().read_gob_u64()?),
             TypeDef::Float => visitor.visit_f64(self.de.reader().read_gob_f64()?),
             TypeDef::Int => visitor.visit_i64(self.de.reader().read_gob_i64()?),
             TypeDef::String => visitor.visit_bytes(&self.de.reader().read_gob_bytes()?),
-            TypeDef::CommonType => self.deserialize_struct(visitor, TypeDef::CommonType),
-            TypeDef::WireType => self.deserialize_struct(visitor, TypeDef::WireType),
-            TypeDef::FieldType => self.deserialize_struct(visitor, TypeDef::FieldType),
-            TypeDef::FieldTypeSlice => self.deserialize_slice(visitor, TypeDef::FieldType),
+            TypeDef::CommonType => self.de.deserialize_map(visitor, TypeDef::CommonType),
+            TypeDef::WireType => self.de.deserialize_map(visitor, TypeDef::WireType),
+            TypeDef::FieldType => self.de.deserialize_map(visitor, TypeDef::FieldType),
+            TypeDef::FieldTypeSlice => self.de.deserialize_seq(visitor, TypeDef::FieldType),
             TypeDef::Custom(wire_type) => match *wire_type {
                 WireTypeEnum::Struct(_) => {
                     let type_def = self.type_def.clone();
-                    self.deserialize_struct(visitor, type_def)
+                    self.de.deserialize_map(visitor, type_def)
                 }
                 _ => bail!("Decoding for {} not implemented")
             }

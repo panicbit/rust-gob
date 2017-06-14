@@ -1,35 +1,29 @@
 use std::io::Read;
 use serde;
+use serde::de::{Visitor,IntoDeserializer};
 use errors::*;
-use serde::de::{Deserializer,Visitor,IntoDeserializer};
 use types::{TypeDef,WireTypeEnum};
-use super::{ValueDeserializer,ReadGob};
+use super::ReadGob;
 
-pub struct FieldMap<'a, R: Read + 'a> {
+pub struct MapAccess<'a, R: Read + 'a> {
     de: &'a mut super::Deserializer<R>,
     type_def: TypeDef,
     current_field: isize,
 }
 
-impl<'a, R: Read + 'a> FieldMap<'a, R> {
+impl<'a, R: Read + 'a> MapAccess<'a, R> {
     pub fn new(de: &'a mut super::Deserializer<R>, type_def: TypeDef) -> Self {
-        FieldMap {
+        MapAccess {
             de,
             type_def,
             current_field: -1,
         }
     }
-
-    fn deserialize_value<'de, V>(&mut self, visitor: V, type_def: TypeDef) -> Result<V::Value>
-        where V: Visitor<'de>
-    {
-        ValueDeserializer::new(self.de, type_def).deserialize_any(visitor)
-    }
 }
 
 // `MapAccess` is provided to the `Visitor` to give it the ability to iterate
 // through entries of the map.
-impl<'a, 'de, R: Read> serde::de::MapAccess<'de> for FieldMap<'a, R> {
+impl<'a, 'de, R: Read> serde::de::MapAccess<'de> for MapAccess<'a, R> {
     type Error = Error;
 
     fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>>
@@ -103,7 +97,7 @@ impl<'a, 'de, R: Read> serde::de::MapAccess<'de> for FieldMap<'a, R> {
     }
 }
 
-impl<'b, 'a, 'de, R: Read> serde::Deserializer<'de> for &'b mut FieldMap<'a, R> {
+impl<'b, 'a, 'de, R: Read> serde::Deserializer<'de> for &'b mut MapAccess<'a, R> {
    type Error = Error;
 
     fn deserialize_any<V>(self, visitor: V) -> Result<V::Value>
@@ -135,7 +129,7 @@ impl<'b, 'a, 'de, R: Read> serde::Deserializer<'de> for &'b mut FieldMap<'a, R> 
                 WireTypeEnum::Struct(ref t) => {
                     let type_id = t.fields().get(field_id as usize).map(|field| field.id()).ok_or(ErrorKind::InvalidField)?;
                     let type_def = self.de.look_up_type(type_id)?; // chain_err?
-                    self.deserialize_value(visitor, type_def)
+                    self.de.deserialize_value(visitor, type_def)
                 },
                 _ => bail!("Decoding of field name for {} not implemented")
             },
@@ -144,8 +138,7 @@ impl<'b, 'a, 'de, R: Read> serde::Deserializer<'de> for &'b mut FieldMap<'a, R> 
     }
 
     fn deserialize_option<V>(self, visitor: V) -> Result<V::Value>
-    where
-        V: Visitor<'de>
+        where V: Visitor<'de>
     {
         visitor.visit_some(self)
     }

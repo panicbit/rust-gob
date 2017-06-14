@@ -33,6 +33,18 @@ impl<R: Read> Deserializer<R> {
         &mut self.reader
     }
 
+    pub(super) fn deserialize_seq<'de, V>(&mut self, visitor: V, type_def: TypeDef) -> Result<V::Value>
+        where V: Visitor<'de>
+    {
+        visitor.visit_seq(super::SeqAccess::new(self, type_def)?)
+    }
+
+    pub(super) fn deserialize_map<'de, V>(&mut self, visitor: V, type_def: TypeDef) -> Result<V::Value>
+        where V: Visitor<'de>
+    {
+        visitor.visit_map(super::MapAccess::new(self, type_def))
+    }
+
     pub(super) fn deserialize_value<'de, V>(&mut self, visitor: V, type_def: TypeDef) -> Result<V::Value>
         where V: Visitor<'de>
     {

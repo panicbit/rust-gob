@@ -8,8 +8,8 @@ pub(self) use self::read_gob::ReadGob;
 mod value_deserializer;
 pub(self) use self::value_deserializer::ValueDeserializer;
 
-mod slice_decoder;
-pub(self) use self::slice_decoder::SliceDecoder;
+mod seq_access;
+pub(self) use self::seq_access::SeqAccess;
 
-mod field_map;
-pub(self) use self::field_map::FieldMap;
+mod map_access;
+pub(self) use self::map_access::MapAccess;
