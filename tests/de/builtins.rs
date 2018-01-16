@@ -110,7 +110,7 @@ mod string {
     const GO_DATA: &str = "\"hello world\"";
     const    DATA: &str =   "hello world";
 
-    test!(String, "string", GO_DATA, String , DATA.into());
+    test!(String, "string", GO_DATA, String , DATA.to_string());
     test!(Vec   , "string", GO_DATA, Vec<u8>, DATA.as_bytes().to_vec());
 }
 
@@ -118,7 +118,7 @@ mod byteslice {
     const GO_DATA: &str = "[]byte(\"hello world\")";
     const    DATA: &str =          "hello world";
 
-    test!(String, "[]byte", GO_DATA, String , DATA.into());
+    test!(String, "[]byte", GO_DATA, String , DATA.to_string());
     test!(Vec   , "[]byte", GO_DATA, Vec<u8>, DATA.as_bytes().to_vec());
 }
 
