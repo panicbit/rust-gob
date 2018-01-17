@@ -7,7 +7,7 @@ use std::fs::File;
 use std::collections::HashMap;
 
 fn main() {
-    env_logger::init().unwrap();
+    env_logger::init();
     let path = "/tmp/out.bin";
     let input = File::open(path).expect(path);
     let mut gob = gob::Deserializer::new(input);
