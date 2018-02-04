@@ -3,6 +3,7 @@
 extern crate env_logger;
 extern crate gob;
 extern crate serde;
+extern crate serde_bytes;
 
 #[macro_use]
 mod utils;

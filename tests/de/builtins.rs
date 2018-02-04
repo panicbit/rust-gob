@@ -1,4 +1,3 @@
-
 macro_rules! test {
     ($name:ident, $go_typ:expr, $go_value:expr, $typ:ty, $value:expr) => {
         de_test! {
@@ -20,6 +19,39 @@ macro_rules! test {
                 #[derive(Deserialize,Default)]
                 #[serde(default)]
                 struct Value {
+                    V: $typ,
+                }
+            },
+
+            validate v: Value {
+                assert_eq!(v.V, $value);
+            }
+        }
+    }
+}
+
+macro_rules! test_bytes {
+    ($name:ident, $go_typ:expr, $go_value:expr, $typ:ty, $value:expr) => {
+        de_test! {
+            $name
+
+            go_decls format!("
+                type Value struct {{
+                    V {}
+                }}
+            ", $go_typ),
+
+            go_value Value format!("
+                return Value {{
+                    V: {},
+                }}
+            ", $go_value),
+
+            decls {
+                #[derive(Deserialize,Default)]
+                #[serde(default)]
+                struct Value {
+                    #[serde(with = "::serde_bytes")]
                     V: $typ,
                 }
             },
@@ -110,16 +142,16 @@ mod string {
     const GO_DATA: &str = "\"hello world\"";
     const    DATA: &str =   "hello world";
 
-    test!(String, "string", GO_DATA, String , DATA.to_string());
-    test!(Vec   , "string", GO_DATA, Vec<u8>, DATA.as_bytes().to_vec());
+    test!(      String, "string", GO_DATA, String , DATA.to_string());
+    test_bytes!(Vec   , "string", GO_DATA, Vec<u8>, DATA.as_bytes().to_vec());
 }
 
 mod byteslice {
     const GO_DATA: &str = "[]byte(\"hello world\")";
     const    DATA: &str =          "hello world";
 
-    test!(String, "[]byte", GO_DATA, String , DATA.to_string());
-    test!(Vec   , "[]byte", GO_DATA, Vec<u8>, DATA.as_bytes().to_vec());
+    test!(      String, "[]byte", GO_DATA, String , DATA.to_string());
+    test_bytes!(Vec   , "[]byte", GO_DATA, Vec<u8>, DATA.as_bytes().to_vec());
 }
 
 mod float {
