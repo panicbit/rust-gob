@@ -9,6 +9,8 @@ macro_rules! de_test {
         #[test]
         #[allow(non_snake_case)]
         fn $test_name() {
+            let _ = ::env_logger::try_init();
+
             #[warn(non_snake_case)]
             {
                 let code = format!(r#"

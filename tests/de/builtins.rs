@@ -1,4 +1,3 @@
-
 macro_rules! test {
     ($name:ident, $go_typ:expr, $go_value:expr, $typ:ty, $value:expr) => {
         de_test! {
@@ -20,6 +19,39 @@ macro_rules! test {
                 #[derive(Deserialize,Default)]
                 #[serde(default)]
                 struct Value {
+                    V: $typ,
+                }
+            },
+
+            validate v: Value {
+                assert_eq!(v.V, $value);
+            }
+        }
+    }
+}
+
+macro_rules! test_bytes {
+    ($name:ident, $go_typ:expr, $go_value:expr, $typ:ty, $value:expr) => {
+        de_test! {
+            $name
+
+            go_decls format!("
+                type Value struct {{
+                    V {}
+                }}
+            ", $go_typ),
+
+            go_value Value format!("
+                return Value {{
+                    V: {},
+                }}
+            ", $go_value),
+
+            decls {
+                #[derive(Deserialize,Default)]
+                #[serde(default)]
+                struct Value {
+                    #[serde(with = "::serde_bytes")]
                     V: $typ,
                 }
             },
@@ -89,11 +121,11 @@ mod uint {
 mod int {
     mod max {
         mod unsigned {
-            test!(u8   , "int64", u8::max_value()   , u8   , u8::max_value());
-            test!(u16  , "int64", u16::max_value()  , u16  , u16::max_value());
-            test!(u32  , "int64", u32::max_value()  , u32  , u32::max_value());
-            test!(u64  , "int64", u64::max_value()  , u64  , u64::max_value());
-            test!(usize, "int"  , usize::max_value(), usize, usize::max_value());
+            test!(u8   , "int64", i8::max_value() as u8      , u8   , i8::max_value() as u8);
+            test!(u16  , "int64", i16::max_value() as u16    , u16  , i16::max_value() as u16);
+            test!(u32  , "int64", i32::max_value() as u32    , u32  , i32::max_value() as u32);
+            test!(u64  , "int64", i64::max_value() as u64    , u64  , i64::max_value() as u64);
+            test!(usize, "int"  , isize::max_value() as usize, usize, isize::max_value() as usize);
         }
 
         mod signed {
@@ -110,16 +142,16 @@ mod string {
     const GO_DATA: &str = "\"hello world\"";
     const    DATA: &str =   "hello world";
 
-    test!(String, "string", GO_DATA, String , DATA.into());
-    test!(Vec   , "string", GO_DATA, Vec<u8>, DATA.as_bytes().to_vec());
+    test!(      String, "string", GO_DATA, String , DATA.to_string());
+    test_bytes!(Vec   , "string", GO_DATA, Vec<u8>, DATA.as_bytes().to_vec());
 }
 
 mod byteslice {
     const GO_DATA: &str = "[]byte(\"hello world\")";
     const    DATA: &str =          "hello world";
 
-    test!(String, "[]byte", GO_DATA, String , DATA.into());
-    test!(Vec   , "[]byte", GO_DATA, Vec<u8>, DATA.as_bytes().to_vec());
+    test!(      String, "[]byte", GO_DATA, String , DATA.to_string());
+    test_bytes!(Vec   , "[]byte", GO_DATA, Vec<u8>, DATA.as_bytes().to_vec());
 }
 
 mod float {

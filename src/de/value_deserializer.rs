@@ -30,12 +30,12 @@ impl<'a, 'b, 'de, R: Read> serde::Deserializer<'de> for &'b mut ValueDeserialize
             | TypeDef::SliceType
             | TypeDef::MapType => bail!("Decoding for {:?} not implemented", self.type_def),
             TypeDef::StructType => self.de.deserialize_map(visitor, TypeDef::StructType),
-            TypeDef::ByteSlice => self.de.deserialize_seq(visitor, TypeDef::Uint),
+            TypeDef::ByteSlice
+            | TypeDef::String => visitor.visit_bytes(&self.de.reader().read_gob_bytes()?),
             TypeDef::Bool => visitor.visit_bool(self.de.reader().read_gob_bool()?),
             TypeDef::Uint => visitor.visit_u64(self.de.reader().read_gob_u64()?),
             TypeDef::Float => visitor.visit_f64(self.de.reader().read_gob_f64()?),
             TypeDef::Int => visitor.visit_i64(self.de.reader().read_gob_i64()?),
-            TypeDef::String => visitor.visit_bytes(&self.de.reader().read_gob_bytes()?),
             TypeDef::CommonType => self.de.deserialize_map(visitor, TypeDef::CommonType),
             TypeDef::WireType => self.de.deserialize_map(visitor, TypeDef::WireType),
             TypeDef::FieldType => self.de.deserialize_map(visitor, TypeDef::FieldType),

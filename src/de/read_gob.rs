@@ -51,9 +51,9 @@ pub trait ReadGob: Read {
     }
 
     fn read_gob_i64(&mut self) -> Result<i64> {
-        let bytes = self.read_gob_u64()? as i64;
+        let bytes = self.read_gob_u64()?;
         let is_complement = bytes & 1 == 1;
-        let bytes = bytes >> 1;
+        let bytes = (bytes >> 1) as i64;
 
         if is_complement {
             Ok(!bytes)
